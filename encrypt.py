@@ -101,6 +101,8 @@ GATE = '''<!doctype html>
     })
     .then(function(buf){
       var html=new TextDecoder().decode(buf);
+      // 공유 링크 암호화·복호화용으로 입력한 암호를 페이지에 넘김 (메모리에만 존재)
+      html=html.replace('<head>','<head><script>window.__SHARE_PW='+JSON.stringify(pw.value).replace(/</g,'\\\\u003c')+';<\\/script>');
       document.open(); document.write(html); document.close();
     })
     .catch(function(){
