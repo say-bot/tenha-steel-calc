@@ -213,8 +213,8 @@
       <input type="number" id="stock" value="420" min="0" step="10">
     </div>
     <div class="field">
-      <label>시간당 정철 생산량</label>
-      <input type="number" id="rate" value="140" min="0" step="10">
+      <label>시간당 정철 생산량 (최대 160)</label>
+      <input type="number" id="rate" value="140" min="0" max="160" step="10">
     </div>
     <div class="field">
       <label>기준 시각</label>
@@ -463,10 +463,13 @@ function fmt(d) {
   if (!(d instanceof Date)) d = new Date(d);
   return `${d.getMonth()+1}.${d.getDate()}(${DAYS[d.getDay()]}) ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
+const MAX_RATE = 160; // 시간당 정철 생산량 상한
 function recalc() {
+  const rateEl = document.getElementById("rate");
+  if (+rateEl.value > MAX_RATE) rateEl.value = MAX_RATE;
   save();
   const stock0 = +document.getElementById("stock").value || 0;
-  const rate0 = +document.getElementById("rate").value || 0;
+  const rate0 = Math.min(MAX_RATE, +rateEl.value || 0);
   const termH = Math.max(0, +document.getElementById("term").value || 0);
   const baseStr = document.getElementById("baseTime").value;
   const base = baseStr ? new Date(baseStr) : new Date();
@@ -481,7 +484,7 @@ function recalc() {
     while (evQ.length && evQ[0].time <= target) {
       const ev = evQ.shift();
       if (ev.time > t) { s += r * (ev.time - t) / 3600000; t = ev.time; }
-      r += ev.delta;
+      r = Math.min(MAX_RATE, r + ev.delta);
     }
     if (target > t) { s += r * (target - t) / 3600000; t = target; }
   }
@@ -499,7 +502,7 @@ function recalc() {
       }
       if (segEnd === Infinity) return null;
       ss += rr * (segEnd - tt) / 3600000;
-      tt = segEnd; rr += nextEv.delta; i++;
+      tt = segEnd; rr = Math.min(MAX_RATE, rr + nextEv.delta); i++;
     }
   }
 
@@ -509,7 +512,7 @@ function recalc() {
     let tt = t, ss = s, rr = r, i = 0;
     while (evQ[i] && evQ[i].time <= target) {
       ss += rr * (evQ[i].time - tt) / 3600000;
-      tt = evQ[i].time; rr += evQ[i].delta; i++;
+      tt = evQ[i].time; rr = Math.min(MAX_RATE, rr + evQ[i].delta); i++;
     }
     return ss + rr * (target - tt) / 3600000;
   }
@@ -565,7 +568,7 @@ function recalc() {
   const allApplies = rows.filter(r2 => !r2.impossible && r2.applyMs).map(r2 => ({time: r2.applyMs, delta: r2.addRate}));
   rows.forEach(row => {
     if (!row.impossible && row.applyMs) {
-      row.rateAfter = rate0 + allApplies.filter(e => e.time <= row.applyMs).reduce((a,e) => a + e.delta, 0);
+      row.rateAfter = Math.min(MAX_RATE, rate0 + allApplies.filter(e => e.time <= row.applyMs).reduce((a,e) => a + e.delta, 0));
     }
   });
 
@@ -588,7 +591,7 @@ function recalc() {
           ${row.shortage ? `<div class="surcharge">⚠ 그 시각 정철 ${row.shortage.toLocaleString()} 부족 → ${fmt(row.effArrive)} 기준 계산</div>` : ""}
         </td>
         <td data-label="건설 직후 잔여">${row.remain.toLocaleString()}</td>
-        <td data-label="추가 생산량 적용">${row.addRate > 0 ? `<span class="ratechg">+${row.addRate}/h (${fmt(row.applyMs)}~)<br><b>→ 총 ${row.rateAfter.toLocaleString()}/h</b></span>` : `<span style="color:var(--muted)">—</span>`}</td>`;
+        <td data-label="추가 생산량 적용">${row.addRate > 0 ? `<span class="ratechg">+${row.addRate}/h (${fmt(row.applyMs)}~)<br><b>→ 총 ${row.rateAfter.toLocaleString()}/h${row.rateAfter >= MAX_RATE ? " (최대)" : ""}</b></span>` : `<span style="color:var(--muted)">—</span>`}</td>`;
     }
     rb.appendChild(tr);
   });
